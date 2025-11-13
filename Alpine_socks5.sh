@@ -1,14 +1,5 @@
 #!/bin/sh
 
-# Alpine Linux SOCKS5 (dante-server) 交互式安装脚本 (V6 - 正确名称版)
-# 智汇 (Gemini) - 使用 'sockd' 而不是 'danted'
-#
-# !! 安全警告 !!
-# 代理服务器是双重用途技术。请确保您的使用遵守当地法律法规
-# 和服务提供商的政策。严禁将此服务用于非法或恶意活动。
-# 您有责任保护此代理的安全，防止被滥用。
-#
-
 # --- 兼容性函数 ---
 prompt_read() {
     printf "%s" "$1"
@@ -30,7 +21,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # 2. 获取用户输入
-echo "--- SOCKS5 代理 (Dante) 交互式安装程序 (V6) ---"
+echo "--- SOCKS5 代理 (Dante) 交互式安装程序 (V7) ---"
 
 prompt_read "请输入 SOCKS5 代理端口 (默认 25426): " PROXY_PORT
 [ -z "$PROXY_PORT" ] && PROXY_PORT=25426
@@ -67,13 +58,23 @@ else
     echo "这非常危险，极易导致您的服务器被滥用并被服务商封禁。"
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     echo
-    prompt_read "我理解风险并确认要创建公开代理 (请输入 'yes' 继续): " CONFIRM_OPEN
     
-    if [ "$CONFIRM_OPEN" != "yes" ]; then
-        echo "已取消安装。"
-        exit 0
-    fi
-    echo "已确认创建公开代理。"
+    # --- V7 修改点 ---
+    prompt_read "我理解风险并确认要创建公开代理 (回车 = 确认, 输入 'no' 取消): " CONFIRM_OPEN
+    
+    # 检查用户是否明确输入了 'no' (或 'n')
+    # 任何其他输入（包括直接回车）都视为同意
+    case "$CONFIRM_OPEN" in
+        [nN] | [nN][oO])
+            echo "已取消安装。"
+            exit 0
+            ;;
+        *)
+            # 默认继续
+            echo "已确认创建公开代理。"
+            ;;
+    esac
+    # --- V7 修改结束 ---
 fi
 
 # 3. 安装软件包
@@ -115,7 +116,7 @@ echo "检测到外部接口: $EXT_IF"
 
 # V6 修正: 写入正确的配置文件
 cat > $CONFIG_FILE <<EOF
-# $CONFIG_FILE - 由智汇的脚本生成 (V6)
+# $CONFIG_FILE - 由智汇的脚本生成 (V7)
 logoutput: /var/log/sockd.log
 internal: 0.0.0.0 port = $PROXY_PORT
 external: $EXT_IF
@@ -141,7 +142,6 @@ touch /var/log/sockd.log
 chown nobody:nobody /var/log/sockd.log
 
 # 7. 启动并设置开机自启 (V6 修正)
-#    包里自带 /etc/init.d/sockd, 无需创建!
 echo "正在启动 $SERVICE_NAME 服务并设置开机自启..."
 rc-service $SERVICE_NAME stop >/dev/null 2>&1
 rc-service $SERVICE_NAME start
@@ -151,7 +151,7 @@ rc-update add $SERVICE_NAME default
 SERVER_IP=$(ip -4 addr show $EXT_IF | grep 'inet' | awk '{print $2}' | cut -d'/' -f1)
 
 echo "-----------------------------------------"
-echo "SOCKS5 代理服务器安装完成！ (V6)"
+echo "SOCKS5 代理服务器安装完成！ (V7)"
 echo ""
 echo "  服务器地址 (IP): $SERVER_IP"
 echo "  服务器端口 (Port): $PROXY_PORT"
