@@ -30,8 +30,8 @@ fi
 # 2. 获取用户输入
 echo "--- SOCKS5 代理 (Dante) 交互式安装程序 (V3) ---"
 
-prompt_read "请输入 SOCKS5 代理端口 (默认 75426): " PROXY_PORT
-[ -z "$PROXY_PORT" ] && PROXY_PORT=75426
+prompt_read "请输入 SOCKS5 代理端口 (默认 25426): " PROXY_PORT
+[ -z "$PROXY_PORT" ] && PROXY_PORT=25426
 
 prompt_read "请输入 SOCKS5 认证用户名 (回车 = 不设置密码/公开代理): " SOCKS_USER
 
