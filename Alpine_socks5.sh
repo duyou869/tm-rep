@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Alpine Linux SOCKS5 (dante-server) 交互式安装脚本 (V4 - 最终修复版)
-# 智汇 (Gemini) - 修复了 Alpine 的 rc-service 启动问题
+# Alpine Linux SOCKS5 (dante-server) 交互式安装脚本 (V5 - 最终路径修复版)
+# 智汇 (Gemini) - 修复了 danted 的可执行文件路径
 #
 # !! 安全警告 !!
 # 代理服务器是双重用途技术。请确保您的使用遵守当地法律法规
@@ -10,16 +10,11 @@
 #
 
 # --- 兼容性函数 ---
-# 封装 read -p 的功能
 prompt_read() {
-    # $1 = 提示符, $2 = 变量名
     printf "%s" "$1"
     read "$2"
 }
-
-# 封装 read -sp (静默输入) 的功能
 prompt_read_silent() {
-    # $1 = 提示符, $2 = 变量名
     printf "%s" "$1"
     stty -echo
     read "$2"
@@ -35,7 +30,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # 2. 获取用户输入
-echo "--- SOCKS5 代理 (Dante) 交互式安装程序 (V4) ---"
+echo "--- SOCKS5 代理 (Dante) 交互式安装程序 (V5) ---"
 
 prompt_read "请输入 SOCKS5 代理端口 (默认 25426): " PROXY_PORT
 [ -z "$PROXY_PORT" ] && PROXY_PORT=25426
@@ -103,7 +98,6 @@ fi
 # 5. 配置 dante-server
 echo "正在配置 dante-server (/etc/danted.conf)..."
 
-# 自动检测主要的外部网络接口 (POSIX 兼容)
 EXT_IF=$(ip route get 8.8.8.8 | awk '{print $5; exit}')
 if [ -z "$EXT_IF" ]; then
     echo "警告：无法自动检测外部网络接口。尝试备选方案..."
@@ -118,7 +112,7 @@ echo "检测到外部接口: $EXT_IF"
 CONFIG_FILE="/etc/danted.conf"
 
 cat > $CONFIG_FILE <<EOF
-# danted.conf - 由智汇的脚本生成 (V4-POSIX)
+# danted.conf - 由智汇的脚本生成 (V5-POSIX)
 logoutput: /var/log/danted.log
 internal: 0.0.0.0 port = $PROXY_PORT
 external: $EXT_IF
@@ -143,12 +137,13 @@ EOF
 touch /var/log/danted.log
 chown nobody:nobody /var/log/danted.log
 
-# 7. [V4 修复] 为 Alpine OpenRC 创建服务文件
+# 7. [V5 修复] 为 Alpine OpenRC 创建服务文件
+#    Alpine 将 danted 安装在 /usr/bin/danted, 而不是 /usr/sbin/danted
 echo "正在创建 /etc/init.d/danted 服务脚本..."
 cat > /etc/init.d/danted <<'EOF'
 #!/sbin/openrc-run
 
-command="/usr/sbin/danted"
+command="/usr/bin/danted"
 command_args="-D"
 pidfile="/var/run/danted.pid"
 
@@ -160,12 +155,10 @@ EOF
 
 chmod +x /etc/init.d/danted
 
-# 8. 启动并设置开机自启 (现在可以正常工作了)
+# 8. 启动并设置开机自启
 echo "正在启动 danted 服务并设置开机自启..."
-# 确保旧进程已停止
 killall danted >/dev/null 2>&1
 rc-service danted stop >/dev/null 2>&1
-# 启动新服务
 rc-service danted start
 rc-update add danted default
 
@@ -173,7 +166,7 @@ rc-update add danted default
 SERVER_IP=$(ip -4 addr show $EXT_IF | grep 'inet' | awk '{print $2}' | cut -d'/' -f1)
 
 echo "-----------------------------------------"
-echo "SOCKS5 代理服务器安装完成！ (V4)"
+echo "SOCKS5 代理服务器安装完成！ (V5)"
 echo ""
 echo "  服务器地址 (IP): $SERVER_IP"
 echo "  服务器端口 (Port): $PROXY_PORT"
