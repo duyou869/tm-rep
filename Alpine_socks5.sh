@@ -1,6 +1,13 @@
 #!/bin/sh
 
-# Alpine Linux SOCKS5 (dante-server) 交互式安装脚本 (V3 - POSIX 兼容版)
+# Alpine Linux SOCKS5 (dante-server) 交互式安装脚本 (V4 - 最终修复版)
+# 智汇 (Gemini) - 修复了 Alpine 的 rc-service 启动问题
+#
+# !! 安全警告 !!
+# 代理服务器是双重用途技术。请确保您的使用遵守当地法律法规
+# 和服务提供商的政策。严禁将此服务用于非法或恶意活动。
+# 您有责任保护此代理的安全，防止被滥用。
+#
 
 # --- 兼容性函数 ---
 # 封装 read -p 的功能
@@ -28,7 +35,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # 2. 获取用户输入
-echo "--- SOCKS5 代理 (Dante) 交互式安装程序 (V3) ---"
+echo "--- SOCKS5 代理 (Dante) 交互式安装程序 (V4) ---"
 
 prompt_read "请输入 SOCKS5 代理端口 (默认 25426): " PROXY_PORT
 [ -z "$PROXY_PORT" ] && PROXY_PORT=25426
@@ -37,7 +44,7 @@ prompt_read "请输入 SOCKS5 认证用户名 (回车 = 不设置密码/公开�
 
 AUTH_METHOD="none"
 PACKAGES="dante-server"
-UNINSTALL_CMD="apk del dante-server"
+UNINSTALL_CMD="apk del dante-server; rm -f /etc/init.d/danted"
 
 # 检查是否需要认证
 if [ -n "$SOCKS_USER" ]; then
@@ -51,7 +58,7 @@ if [ -n "$SOCKS_USER" ]; then
     
     AUTH_METHOD="username"
     PACKAGES="dante-server shadow"
-    UNINSTALL_CMD="apk del dante-server shadow; userdel $SOCKS_USER"
+    UNINSTALL_CMD="apk del dante-server shadow; userdel $SOCKS_USER; rm -f /etc/init.d/danted"
     
 else
     # 无认证（公开代理）
@@ -100,7 +107,6 @@ echo "正在配置 dante-server (/etc/danted.conf)..."
 EXT_IF=$(ip route get 8.8.8.8 | awk '{print $5; exit}')
 if [ -z "$EXT_IF" ]; then
     echo "警告：无法自动检测外部网络接口。尝试备选方案..."
-    # 使用 awk 替代 grep -Po
     EXT_IF=$(ip -4 route ls | grep default | awk '{ for(i=1;i<=NF;i++) { if($i=="dev") { print $(i+1); exit; } } }')
     if [ -z "$EXT_IF" ]; then
         echo "错误：无法检测网络接口。请手动配置 /etc/danted.conf"
@@ -112,32 +118,20 @@ echo "检测到外部接口: $EXT_IF"
 CONFIG_FILE="/etc/danted.conf"
 
 cat > $CONFIG_FILE <<EOF
-# danted.conf - 由智汇的脚本生成 (V3-POSIX)
+# danted.conf - 由智汇的脚本生成 (V4-POSIX)
 logoutput: /var/log/danted.log
-
-# 内部接口：监听所有IP地址的指定端口
 internal: 0.0.0.0 port = $PROXY_PORT
-
-# 外部接口：流量将通过此接口出去
 external: $EXT_IF
-
-# 认证方式：
-# username = 使用系统用户 (/etc/passwd) 进行用户名/密码验证
-# none = 无认证 (公开代理)
 socksmethod: $AUTH_METHOD
-
-# 运行服务的用户
 user.privileged: root
 user.unprivileged: nobody
 
-# --- 客户端规则 (谁可以连接到代理) ---
 client pass {
     from: 0.0.0.0/0
     to: 0.0.0.0/0
     log: connect error
 }
 
-# --- SOCKS 规则 (认证后/或无需认证 可以访问哪里) ---
 socks pass {
     from: 0.0.0.0/0
     to: 0.0.0.0/0
@@ -149,17 +143,37 @@ EOF
 touch /var/log/danted.log
 chown nobody:nobody /var/log/danted.log
 
-# 7. 启动并设置开机自启
+# 7. [V4 修复] 为 Alpine OpenRC 创建服务文件
+echo "正在创建 /etc/init.d/danted 服务脚本..."
+cat > /etc/init.d/danted <<'EOF'
+#!/sbin/openrc-run
+
+command="/usr/sbin/danted"
+command_args="-D"
+pidfile="/var/run/danted.pid"
+
+depend() {
+    need net
+    use dns
+}
+EOF
+
+chmod +x /etc/init.d/danted
+
+# 8. 启动并设置开机自启 (现在可以正常工作了)
 echo "正在启动 danted 服务并设置开机自启..."
+# 确保旧进程已停止
+killall danted >/dev/null 2>&1
 rc-service danted stop >/dev/null 2>&1
+# 启动新服务
 rc-service danted start
 rc-update add danted default
 
-# 8. 完成
+# 9. 完成
 SERVER_IP=$(ip -4 addr show $EXT_IF | grep 'inet' | awk '{print $2}' | cut -d'/' -f1)
 
 echo "-----------------------------------------"
-echo "SOCKS5 代理服务器安装完成！"
+echo "SOCKS5 代理服务器安装完成！ (V4)"
 echo ""
 echo "  服务器地址 (IP): $SERVER_IP"
 echo "  服务器端口 (Port): $PROXY_PORT"
