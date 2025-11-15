@@ -3,7 +3,7 @@
 # 一键安装和伪装 network-svc 和 cache-manager 的脚本
 #
 # !! 目标系统: Ubuntu / Debian (使用 apt 和 systemd) !!
-# V4 - 修复了 crane v0.20+ 之后文件名中 amd64/x86_64 混淆的问题
+# V5 - 修复了 crane 下载文件名格式问题 (使用正确的 go-containerregistry 文件名)
 # ------------------------------------------------------------------
 
 # 1. 如果任何命令失败，立即停止脚本
@@ -18,7 +18,7 @@ echo "所有依赖安装完毕。"
 echo ""
 
 # ------------------------------------------------------------------
-# 阶段二：(V4 修复版) 手动安装 crane (处理动态文件名)
+# 阶段二：(V5 修复版) 手动安装 crane (使用正确的文件名格式)
 # ------------------------------------------------------------------
 echo "--- 阶段二：手动安装 crane ---"
 echo "Ubuntu/Debian 仓库中没有 crane，正在从 GitHub 自动查找最新版..."
@@ -31,22 +31,19 @@ if [ -z "$CRANE_TAG" ]; then
     exit 1
 fi
 
-# 2. 从 'v0.20.6' 提取 '0.20.6' (去掉 'v')
-CRANE_VERSION_NUM=$(echo "$CRANE_TAG" | sed 's/v//')
-
-# 3. (V4 修复!) 构造新的、正确的文件名 (使用 amd64 而不是 x86_64)
-FILENAME="crane_${CRANE_VERSION_NUM}_Linux_amd64.tar.gz"
+# 2. 构造正确的文件名 (V5 修复: 使用实际的文件命名格式)
+FILENAME="go-containerregistry_Linux_x86_64.tar.gz"
 
 echo "找到最新版本: $CRANE_TAG，正在下载 $FILENAME..."
 
-# 4. 使用这个最新版本号和新文件名下载
+# 3. 使用这个最新版本号和正确文件名下载
 curl -f -L "https://github.com/google/go-containerregistry/releases/download/${CRANE_TAG}/${FILENAME}" -o ${FILENAME}
 
-# 5. 解压
+# 4. 解压
 tar -zxvf ${FILENAME} crane
 mv crane /usr/local/bin/crane
 
-# 6. 清理
+# 5. 清理
 rm ${FILENAME}
 
 echo "crane 已安装到 /usr/local/bin/crane"
