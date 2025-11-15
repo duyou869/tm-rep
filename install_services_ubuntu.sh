@@ -3,7 +3,7 @@
 # 一键安装和伪装 network-svc 和 cache-manager 的脚本
 #
 # !! 目标系统: Ubuntu / Debian (使用 apt 和 systemd) !!
-# V2 - 自动获取最新的 crane 版本，修复下载失败的问题
+# V3 - 修复了 crane v0.20+ 之后文件名变更导致的 404 错误
 # ------------------------------------------------------------------
 
 # 1. 如果任何命令失败，立即停止脚本
@@ -11,40 +11,47 @@ set -e
 
 echo "--- 阶段一：全局环境准备 (Ubuntu/Debian) ---"
 echo "正在更新软件包列表 (apt update)..."
-# -y 自动回答 "yes"
 apt-get update -y
-
 echo "正在安装所有依赖 (curl, nano, C++, Node.js)..."
-# 注意：这里用 apt-get，并且包名可能不同
 apt-get install -y curl nano libstdc++6 libgcc-s1 nodejs npm
 echo "所有依赖安装完毕。"
 echo ""
 
 # ------------------------------------------------------------------
-# 阶段二：(新) 手动安装 crane (自动获取最新版)
+# 阶段二：(V3 修复版) 手动安装 crane (处理动态文件名)
 # ------------------------------------------------------------------
 echo "--- 阶段二：手动安装 crane ---"
 echo "Ubuntu/Debian 仓库中没有 crane，正在从 GitHub 自动查找最新版..."
 
-# 1. 自动从 GitHub API 查询最新的版本号 (例如: v0.20.1)
-# 我们使用 curl 的 -f 选项，如果API失败（如404或403），脚本会因为 set -e 而停止
-CRANE_VERSION=$(curl -s -f "https://api.github.com/repos/google/go-containerregistry/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+# 1. 自动从 GitHub API 查询最新的版本号 (例如: v0.20.6)
+CRANE_TAG=$(curl -s -f "https://api.github.com/repos/google/go-containerregistry/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
-if [ -z "$CRANE_VERSION" ]; then
+if [ -z "$CRANE_TAG" ]; then
     echo "错误：无法自动从 GitHub API 获取最新版本号。"
-    echo "请检查你的 VPS 是否能访问 api.github.com"
     exit 1
 fi
 
-echo "找到最新版本: $CRANE_VERSION，正在下载..."
+# 2. 从 'v0.20.6' 提取 '0.20.6' (去掉 'v')
+CRANE_VERSION_NUM=$(echo "$CRANE_TAG" | sed 's/v//')
 
-# 2. 使用这个最新版本号下载
-curl -f -L "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/crane_Linux_x86_64.tar.gz" -o crane.tar.gz
-tar -zxvf crane.tar.gz crane
+# 3. 构造新的、正确的文件名 (例如: crane_0.20.6_Linux_x86_64.tar.gz)
+FILENAME="crane_${CRANE_VERSION_NUM}_Linux_x86_64.tar.gz"
+
+echo "找到最新版本: $CRANE_TAG，正在下载 $FILENAME..."
+
+# 4. 使用这个最新版本号和新文件名下载
+curl -f -L "https://github.com/google/go-containerregistry/releases/download/${CRANE_TAG}/${FILENAME}" -o ${FILENAME}
+
+# 5. 解压
+tar -zxvf ${FILENAME} crane
 mv crane /usr/local/bin/crane
-rm crane.tar.gz
+
+# 6. 清理
+rm ${FILENAME}
+
 echo "crane 已安装到 /usr/local/bin/crane"
 echo ""
+
 
 # ------------------------------------------------------------------
 # 阶段三：安装服务 1 (network-svc / Traffmonetizer)
