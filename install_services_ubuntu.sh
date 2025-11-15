@@ -3,7 +3,7 @@
 # 一键安装和伪装 network-svc 和 cache-manager 的脚本
 #
 # !! 目标系统: Ubuntu / Debian (使用 apt 和 systemd) !!
-# V5 - 修复了 crane 下载文件名格式问题 (使用正确的 go-containerregistry 文件名)
+# V5 - 最终修复版。使用正确的 'crane' 下载逻辑。
 # ------------------------------------------------------------------
 
 # 1. 如果任何命令失败，立即停止脚本
@@ -18,12 +18,13 @@ echo "所有依赖安装完毕。"
 echo ""
 
 # ------------------------------------------------------------------
-# 阶段二：(V5 修复版) 手动安装 crane (使用正确的文件名格式)
+# 阶段二：(V5 最终修复版) 手动安装 crane (使用固定的最新版链接)
 # ------------------------------------------------------------------
 echo "--- 阶段二：手动安装 crane ---"
 echo "Ubuntu/Debian 仓库中没有 crane，正在从 GitHub 自动查找最新版..."
 
 # 1. 自动从 GitHub API 查询最新的版本号 (例如: v0.20.6)
+# (我们仍然需要这个来构造 /download/v0.20.6/ 的 URL)
 CRANE_TAG=$(curl -s -f "https://api.github.com/repos/google/go-containerregistry/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
 if [ -z "$CRANE_TAG" ]; then
@@ -31,15 +32,17 @@ if [ -z "$CRANE_TAG" ]; then
     exit 1
 fi
 
-# 2. 构造正确的文件名 (V5 修复: 使用实际的文件命名格式)
-FILENAME="go-containerregistry_Linux_x86_64.tar.gz"
+# 2. (V5 修复!) 构造正确的、不带版本号的文件名 (使用 amd64)
+FILENAME="go-containerregistry_Linux_amd64.tar.gz"
 
 echo "找到最新版本: $CRANE_TAG，正在下载 $FILENAME..."
 
-# 3. 使用这个最新版本号和正确文件名下载
+# 3. 使用这个最新版本号和“固定”的文件名下载
+# (这个链接 .../v0.20.6/go-containerregistry_Linux_amd64.tar.gz 是有效的)
 curl -f -L "https://github.com/google/go-containerregistry/releases/download/${CRANE_TAG}/${FILENAME}" -o ${FILENAME}
 
 # 4. 解压
+# (我们从这个包里只解压出 crane)
 tar -zxvf ${FILENAME} crane
 mv crane /usr/local/bin/crane
 
@@ -48,7 +51,6 @@ rm ${FILENAME}
 
 echo "crane 已安装到 /usr/local/bin/crane"
 echo ""
-
 
 # ------------------------------------------------------------------
 # 阶段三：安装服务 1 (network-svc / Traffmonetizer)
