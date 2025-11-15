@@ -3,6 +3,7 @@
 # 一键安装和伪装 network-svc 和 cache-manager 的脚本
 #
 # !! 目标系统: Ubuntu / Debian (使用 apt 和 systemd) !!
+# V2 - 自动获取最新的 crane 版本，修复下载失败的问题
 # ------------------------------------------------------------------
 
 # 1. 如果任何命令失败，立即停止脚本
@@ -20,13 +21,25 @@ echo "所有依赖安装完毕。"
 echo ""
 
 # ------------------------------------------------------------------
-# 阶段二：(新) 手动安装 crane
+# 阶段二：(新) 手动安装 crane (自动获取最新版)
 # ------------------------------------------------------------------
 echo "--- 阶段二：手动安装 crane ---"
-echo "Ubuntu/Debian 仓库中没有 crane，正在从 GitHub 手动下载..."
-# (我们假设一个版本，通常是稳定的)
-CRANE_VERSION="v0.19.1"
-curl -L "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/crane_Linux_x86_64.tar.gz" -o crane.tar.gz
+echo "Ubuntu/Debian 仓库中没有 crane，正在从 GitHub 自动查找最新版..."
+
+# 1. 自动从 GitHub API 查询最新的版本号 (例如: v0.20.1)
+# 我们使用 curl 的 -f 选项，如果API失败（如404或403），脚本会因为 set -e 而停止
+CRANE_VERSION=$(curl -s -f "https://api.github.com/repos/google/go-containerregistry/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$CRANE_VERSION" ]; then
+    echo "错误：无法自动从 GitHub API 获取最新版本号。"
+    echo "请检查你的 VPS 是否能访问 api.github.com"
+    exit 1
+fi
+
+echo "找到最新版本: $CRANE_VERSION，正在下载..."
+
+# 2. 使用这个最新版本号下载
+curl -f -L "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/crane_Linux_x86_64.tar.gz" -o crane.tar.gz
 tar -zxvf crane.tar.gz crane
 mv crane /usr/local/bin/crane
 rm crane.tar.gz
@@ -35,7 +48,6 @@ echo ""
 
 # ------------------------------------------------------------------
 # 阶段三：安装服务 1 (network-svc / Traffmonetizer)
-# (这部分和 Alpine 脚本完全相同)
 # ------------------------------------------------------------------
 echo "--- 阶段三：安装 'network-svc' ---"
 echo "创建目录 /opt/network-svc 并进入..."
@@ -57,7 +69,6 @@ echo ""
 # ------------------------------------------------------------------
 echo "--- 阶段四：配置 'network-svc' (systemd) ---"
 echo "创建 /etc/systemd/system/network-svc.service (服务脚本)..."
-# 注意：这是 systemd 的 INI 格式，不是 OpenRC 的 shell 脚本
 cat << EOF > /etc/systemd/system/network-svc.service
 [Unit]
 Description=Network Core Service (Traffmonetizer)
@@ -87,7 +98,6 @@ echo ""
 
 # ------------------------------------------------------------------
 # 阶段五：安装服务 2 (cache-manager / Repocket)
-# (这部分和 Alpine 脚本完全相同)
 # ------------------------------------------------------------------
 echo "--- 阶段五：安装 'cache-manager' ---"
 echo "创建目录 /opt-cache-manager 并进入..."
