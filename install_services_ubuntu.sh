@@ -11,7 +11,7 @@ set -e
 
 echo "--- 阶段一：全局环境准备 (Ubuntu/Debian) ---"
 echo "正在更新软件包列表 (apt update)..."
-apt-get update -y
+#apt-get update -y
 echo "正在安装所有依赖 (curl, nano, C++, Node.js)..."
 apt-get install -y curl nano libstdc++6 libgcc-s1 nodejs npm
 echo "所有依赖安装完毕。"
