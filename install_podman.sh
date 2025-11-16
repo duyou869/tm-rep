@@ -39,7 +39,6 @@ if [ "$SYSTEM_TYPE" = "debian" ]; then
     echo "正在使用 apt (适用于 Debian/Ubuntu)..."
     # 非交互式安装，避免卡住
     export DEBIAN_FRONTEND=noninteractive
-    apt update
     apt install -y podman
     
 elif [ "$SYSTEM_TYPE" = "alpine" ]; then
